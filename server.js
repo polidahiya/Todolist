@@ -10,13 +10,19 @@ app.use(express.json());
 app.listen(3005);
 
 //
-app.use(cors({
-  origin: `http://localhost:3000`,
-  credentials: true,
-}))
+app.use(
+  cors({
+    origin: `http://localhost:3000`,
+    credentials: true,
+  })
+);
 
 //
-app.use(express.static("./build"));
+app.use(
+  express.static("./build", () => {
+    console.log("/req");
+  })
+);
 app.get("/", function (req, res) {
   res.sendFile(path.join(__dirname, "build", "index.html"));
   console.log("/req");
@@ -36,11 +42,17 @@ mongoose.connect(db_link).then(async function () {
   console.log("listening");
 
   // createposts
-  app.post("/createtask", verifyToken, (req, res) => {
+  app.post("/createtask", verifyToken,async (req, res) => {
     try {
       console.log("ctrequest");
+      // 
+        const increaseValue=1
+        users.updateOne(
+          { email: req.email },
+          { $inc: { ttask: increaseValue } })
+      // 
       req.body.id = Date.now();
-      req.body.status = "incomplete";
+      req.body.status = "Incomplete";
       req.body.email = req.email;
       tasks.insertOne(req.body);
       res.json({
@@ -56,19 +68,35 @@ mongoose.connect(db_link).then(async function () {
     try {
       console.log("task get req");
       const result = await tasks.find({ email: req.email }).toArray();
-      console.log("resuts", result);
       res.json(result);
     } catch (error) {
       console.log(error);
     }
   });
 
+ 
+
   //
   app.post("/Edittask", verifyToken, async (req, res) => {
     try {
-      //
-
-      //
+      // 
+      const result = await tasks.findOne({ id: req.body.id })
+      console.log(result.status,req.body.status);
+      if(result.status=="Incomplete" && req.body.status=="complete"){
+        const increaseValue=1
+        users.updateOne(
+          { email: req.email },
+          { $inc: { ctask: increaseValue } })
+      }
+      else{
+        if(result.status=="complete" && req.body.status=="Incomplete"){
+          const increaseValue=-1
+          users.updateOne(
+            { email: req.email },
+            { $inc: { ctask: increaseValue } })
+        }
+      }
+      // 
       const query = { id: req.body.id };
       const update = {
         $set: {
@@ -103,17 +131,47 @@ mongoose.connect(db_link).then(async function () {
     }
   });
 
+  // Admin
+
+   // admin users
+   app.get("/users", verifyToken, async (req, res) => {
+    try {
+      console.log("users get req");
+      //
+      let user = await users.find({}).toArray();
+      res.json(user);
+      //
+    } catch (error) {
+      console.log(error);
+    }
+  });
+  // admin tasks
+  app.get("/admintask:email", verifyToken, async (req, res) => {
+    try {
+      console.log("admin task get req");
+      const { email } = req.params;
+      const newemail=(email.replace(/:/g, ""))
+      console.log("email",newemail);
+      const result = await tasks.find({ email: newemail }).toArray();
+      console.log("results", result);
+      res.json(result);
+    } catch (error) {
+      console.log(error);
+    }
+  });
+
   //user verification
 
   app.post("/signup", (req, res) => {
     try {
       let email = req.body.email;
-      console.log(req.body);
       let userdata = {
         fullname: req.body.fullname,
         email: req.body.email,
         password: req.body.password,
         confirmpassword: req.body.confirmpassword,
+        ttask:0,
+        ctask:0,
       };
 
       const query = { email: `${email}` };
@@ -147,14 +205,18 @@ mongoose.connect(db_link).then(async function () {
         if (user) {
           if (user.password == password) {
             const token = jwt.sign({ userId: email }, "this-world-is-toxic", {
-              expiresIn: "1h",
+              expiresIn: "24h",
             });
             res.cookie(`token`, token, {
               httpOnly: true,
               sameSite: "lax",
               maxAge: 24 * 60 * 60 * 1000,
             });
-            res.status(200).json({ message: "Login successful", token });
+            if(email=="admin@gmail.com"){
+              res.status(200).json({ message: "Login successful(Admin)", token });
+            }else{
+              res.status(200).json({ message: "Login successful", token });
+            }
           } else {
             user.message = "Wrong password";
             res.json({
@@ -190,13 +252,13 @@ mongoose.connect(db_link).then(async function () {
       if (token) {
         jwt.verify(token, "this-world-is-toxic", (err, decoded) => {
           if (err) {
-            return res.status(403).json({ message: "Invalid token" });
+            return res.json({ message: "Invalid token" });
           }
           req.email = decoded.userId;
           next();
         });
       } else {
-        res.status(401).json({ message: "Token not provided" });
+        res.json({ message: "Token not provided" });
       }
     } else {
       console.log("unlogined request");
