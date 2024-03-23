@@ -28,8 +28,7 @@ app.get("/", function (req, res) {
   console.log("/req");
 });
 
-const db_link =
-  "mongodb+srv://polidahiya830:12er56ui90%40Poli@cluster0.pvrgiqn.mongodb.net/?retryWrites=true&w=majority";
+const db_link = prcess.env.mongolink;
 
 mongoose.connect(db_link).then(async function () {
   const client = new MongoClient(db_link);
