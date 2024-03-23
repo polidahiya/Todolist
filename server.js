@@ -28,7 +28,7 @@ app.get("/", function (req, res) {
   console.log("/req");
 });
 
-const db_link = prcess.env.mongolink;
+const db_link = process.env.mongolink;
 
 mongoose.connect(db_link).then(async function () {
   const client = new MongoClient(db_link);
